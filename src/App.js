@@ -1,6 +1,6 @@
 import { Upload, Button, Select, Table } from 'antd';
 import './App.scss';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function App() {
@@ -58,6 +58,13 @@ export default function App() {
     return false;
   };
 
+  const [selectedKey, setSelectedKey] = useState('');
+  const [selectedFields, setSelectedFields] = useState([]);
+
+  useEffect(() => {
+    // setSelectedFields(headers1);
+  }, [headers1]);
+
   return (
     <div className="excel-compare-container">
       {/* 文件上传区域 */}
@@ -98,14 +105,17 @@ export default function App() {
         <Select
           placeholder="选择关联表头KEY"
           style={{ width: 300 }}
-          options={[]}
+          options={headers1.map(h => ({ value: h, label: h }))}
+          onChange={value => setSelectedKey(value)}
         />
         
         <Select
           mode="multiple"
           placeholder="选择对比字段"
           style={{ width: 400 }}
-          options={[]}
+          options={headers1.map(h => ({ value: h, label: h }))}
+          value={selectedFields}
+          onChange={values => setSelectedFields(values)}
         />
         
         <Button type="primary">开始对比</Button>
