@@ -31,6 +31,32 @@ export default function App() {
     reader.readAsArrayBuffer(file);
     return false; // 阻止默认上传
   };
+  // 第二个Excel文件相关数据
+  const [excelData2, setExcelData2] = useState([]);
+  const [headers2, setHeaders2] = useState([]);
+  const [isLoading2, setIsLoading2] = useState(false);
+  const [fileList2, setFileList2] = useState([]);
+
+  const handleSecondExcel = (file) => {
+    setFileList2([file]);
+    setIsLoading2(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      const headerRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0];
+      console.log(headerRow);
+      console.log(jsonData);
+      setHeaders2(headerRow);
+      setExcelData2(jsonData);
+      setIsLoading2(false);
+    };
+    reader.readAsArrayBuffer(file);
+    return false;
+  };
 
   return (
     <div className="excel-compare-container">
@@ -51,8 +77,19 @@ export default function App() {
           }
         </Upload.Dragger>
         
-        <Upload.Dragger className="upload-box" accept=".xlsx,.xls">
-          <p>点击或拖拽上传第二个Excel文件</p>
+        <Upload.Dragger 
+          className="upload-box"
+          accept=".xlsx,.xls"
+          beforeUpload={handleSecondExcel}
+          fileList={fileList2}
+          onRemove={() => setFileList2([])}
+        >
+          {isLoading2 ? 
+            <p>解析中...</p> : 
+            (fileList2.length > 0 ? 
+              fileList2[0].name : 
+              <p>点击或拖拽上传第二个Excel文件</p>)
+          }
         </Upload.Dragger>
       </div>
 
