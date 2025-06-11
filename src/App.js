@@ -1,4 +1,4 @@
-import { Upload, Button, Select, Table } from 'antd';
+import { Upload, Button, Select, Table, message } from 'antd';
 import './App.scss';
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
@@ -31,6 +31,7 @@ export default function App() {
     reader.readAsArrayBuffer(file);
     return false; // 阻止默认上传
   };
+
   // 第二个Excel文件相关数据
   const [excelData2, setExcelData2] = useState([]);
   const [headers2, setHeaders2] = useState([]);
@@ -58,12 +59,110 @@ export default function App() {
     return false;
   };
 
+  // headers1和headers2的交集
+  const [commonHeaders, setCommonHeaders] = useState([]);
+  // 关联表头选择
   const [selectedKey, setSelectedKey] = useState('');
-  const [selectedFields, setSelectedFields] = useState([]);
+  // 对比字段选择
+  const [selectedHeaders, setSelectedHeaders] = useState([]);
 
   useEffect(() => {
-    // setSelectedFields(headers1);
-  }, [headers1]);
+    // 交集
+    const newCommonHeaders = headers1.filter(h => headers2.includes(h));
+    setCommonHeaders(newCommonHeaders);
+    setSelectedKey(newCommonHeaders[0]);
+    setSelectedHeaders([]);
+  }, [headers1, headers2]);
+
+  // 检查key是否唯一
+  const checkKey = (excelData) => {
+    const keySet = new Set();
+    for(let row of excelData){
+      const key = row[selectedKey];
+      if (keySet.has(key)) {
+        return false;
+      }
+      keySet.add(key);
+    };
+    return true;
+  }
+
+  useEffect(() => {
+    setSelectedHeaders([]);
+  }, [selectedKey]);
+
+  // 获取对比字段选项
+  const getComparisonOptions = () => {
+    // 过滤掉关联表头
+    const options = commonHeaders.filter(h => h !== selectedKey);
+    return options.map(h => ({ value: h, label: h }))
+  }
+
+  // 差异数据和表头
+  const [diffData1, setDiffData1] = useState([]);
+  const [diffData2, setDiffData2] = useState([]);
+  const [diffColumns, setDiffColumns] = useState([]);
+
+  // 对比逻辑
+  const handleCompare = () => {
+    if (!selectedKey || selectedHeaders.length === 0) return;
+    // 检查关联表头是否唯一
+    if(!checkKey(excelData1) || !checkKey(excelData2)){
+      setSelectedKey('');
+      message.error('关联表头重复，请选择唯一的表头作为关联表头');
+      return;
+    }
+    
+    // 用key做map
+    const map2 = new Map();
+    excelData2.forEach(row => {
+      map2.set(row[selectedKey], row);
+    });
+    const diffRows1 = [];
+    const diffRows2 = [];
+    excelData1.forEach(row1 => {
+      const key = row1[selectedKey];
+      const row2 = map2.get(key);
+      if (!row2) return; // 只对比两表都有的key
+      let hasDiff = false;
+      const diffRow1 = { key };
+      const diffRow2 = { key };
+      selectedHeaders.forEach(h => {
+        const isDiff = row1[h] !== row2[h];
+        if (isDiff) hasDiff = true;
+        diffRow1[h] = { value: row1[h], diff: isDiff };
+        diffRow2[h] = { value: row2[h], diff: isDiff };
+      });
+      diffRow1[selectedKey] = { value: key, diff: false };
+      diffRow2[selectedKey] = { value: key, diff: false };
+      if (hasDiff) {
+        diffRows1.push(diffRow1);
+        diffRows2.push(diffRow2);
+      }
+    });
+    // 生成columns
+    const columns = [
+      {
+        title: selectedKey,
+        dataIndex: selectedKey,
+        key: selectedKey,
+        render: (cell) => cell?.value ?? '',
+        width: 100,
+      },
+      ...selectedHeaders.map(h => ({
+        title: h,
+        dataIndex: h,
+        key: h,
+        render: (cell) => cell?.diff ? (
+          <span style={{ background: '#ffe58f' }}>{cell?.value ?? ''}</span>
+        ) : (cell?.value ?? ''),
+        width: 100,
+      }))
+    ];
+    setDiffData1(diffRows1);
+    setDiffData2(diffRows2);
+    setDiffColumns(columns);
+  };
 
   return (
     <div className="excel-compare-container">
@@ -105,7 +204,8 @@ export default function App() {
         <Select
           placeholder="选择关联表头KEY"
           style={{ width: 300 }}
-          options={headers1.map(h => ({ value: h, label: h }))}
+          value={selectedKey}
+          options={commonHeaders.map(h => ({ value: h, label: h }))}
           onChange={value => setSelectedKey(value)}
         />
         
@@ -113,20 +213,20 @@ export default function App() {
           mode="multiple"
           placeholder="选择对比字段"
           style={{ width: 400 }}
-          options={headers1.map(h => ({ value: h, label: h }))}
-          value={selectedFields}
-          onChange={values => setSelectedFields(values)}
+          options={getComparisonOptions()}
+          value={selectedHeaders}
+          onChange={values => setSelectedHeaders(values)}
         />
         
-        <Button type="primary">开始对比</Button>
+        <Button type="primary" onClick={handleCompare}>开始对比</Button>
       </div>
 
       {/* 差异展示表格 */}
       <div className="result-section">
         <div className="compare-table">
           <Table
-            columns={[]}
-            dataSource={[]}
+            columns={diffColumns}
+            dataSource={diffData1}
             scroll={{ x: true }}
             pagination={false}
           />
@@ -134,8 +234,8 @@ export default function App() {
         
         <div className="compare-table">
           <Table
-            columns={[]}
-            dataSource={[]}
+            columns={diffColumns}
+            dataSource={diffData2}
             scroll={{ x: true }}
             pagination={false}
           />
