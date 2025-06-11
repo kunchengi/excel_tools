@@ -153,7 +153,7 @@ export default function App() {
       if (!map1.has(key)) {
         // 表2多出的行
         const diffRow2 = { key, rowIndex: index + 1, added: true };
-        const diffRow1 = { key, rowIndex: undefined };
+        const diffRow1 = { key, rowIndex: index + 1 + 0.5 };
         selectedHeaders.forEach(h => {
           diffRow2[h] = { value: row2[h], diff: false, added: true };
           diffRow1[h] = { value: '', diff: false };
@@ -178,6 +178,37 @@ export default function App() {
         }
       }
     });
+    // 新增：处理表1比表2多出的行（红色标注）
+    excelData1.forEach((row1, index) => {
+      const key = getKey(row1);
+      if (!map2.has(key)) {
+        // 表1多出的行
+        const diffRow1 = { key, rowIndex: index + 1, removed: true };
+        const diffRow2 = { key, rowIndex: index + 1 + 0.5 };
+        selectedHeaders.forEach(h => {
+          diffRow1[h] = { value: row1[h], diff: false, removed: true };
+          diffRow2[h] = { value: '', diff: false };
+        });
+        selectedKeys.forEach(k => {
+          diffRow1[k] = { value: row1[k], diff: false, removed: true };
+          diffRow2[k] = { value: '', diff: false };
+        });
+        // 找到刚好大于diffRow1.rowIndex的项
+        const insertIndex = diffRows1.findIndex(row => row.rowIndex > diffRow1.rowIndex);
+        if (insertIndex !== -1) {
+          diffRows1.splice(insertIndex, 0, diffRow1);
+        } else {
+          diffRows1.push(diffRow1);
+        }
+        // 找到刚好大于diffRow1.rowIndex的项
+        const insertIndex2 = diffRows2.findIndex(row => row.rowIndex > diffRow1.rowIndex);
+        if (insertIndex2 !== -1) {
+          diffRows2.splice(insertIndex2, 0, diffRow2);
+        } else {
+          diffRows2.push(diffRow2);
+        }
+      }
+    });
     // 生成columns
     const columns = [
       {
@@ -185,13 +216,21 @@ export default function App() {
         dataIndex: 'rowIndex',
         key: 'rowIndex',
         width: 70,
-        render: (cell) => (cell !== undefined ? cell + 1 : ''),
+        render: (cell, row) => {
+          if (row && row.removed) return <span style={{ background: '#ffccc7' }}>{cell !== undefined ? cell + 1 : ''}</span>;
+          if (row && row.added) return <span className="extra-column">{cell !== undefined ? cell + 1 : ''}</span>;
+          return cell % 1 === 0 ? cell + 1 : '';
+        },
       },
       ...selectedKeys.map(k => ({
         title: k,
         dataIndex: k,
         key: k,
-        render: (cell, row) => row && row.added ? <span className="extra-column">{cell?.value ?? ''}</span> : (cell?.value ?? ''),
+        render: (cell, row) => {
+          if (row && row.removed) return <span style={{ background: '#ffccc7' }}>{cell?.value ?? ''}</span>;
+          if (row && row.added) return <span className="extra-column">{cell?.value ?? ''}</span>;
+          return cell?.value ?? '';
+        },
         width: 100,
       })),
       ...selectedHeaders.map(h => ({
@@ -199,6 +238,7 @@ export default function App() {
         dataIndex: h,
         key: h,
         render: (cell, row) => {
+          if (row && row.removed) return <span style={{ background: '#ffccc7' }}>{cell?.value ?? ''}</span>;
           if (row && row.added) return <span className="extra-column">{cell?.value ?? ''}</span>;
           return cell?.diff ? (
             <span style={{ background: '#ffe58f' }}>{cell?.value ?? ''}</span>
