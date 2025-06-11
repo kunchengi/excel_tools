@@ -61,8 +61,8 @@ export default function App() {
 
   // headers1和headers2的交集
   const [commonHeaders, setCommonHeaders] = useState([]);
-  // 关联表头选择
-  const [selectedKey, setSelectedKey] = useState('');
+  // 关联表头选择（多选）
+  const [selectedKeys, setSelectedKeys] = useState([]);
   // 对比字段选择
   const [selectedHeaders, setSelectedHeaders] = useState([]);
 
@@ -70,15 +70,15 @@ export default function App() {
     // 交集
     const newCommonHeaders = headers1.filter(h => headers2.includes(h));
     setCommonHeaders(newCommonHeaders);
-    setSelectedKey(newCommonHeaders[0]);
+    setSelectedKeys(newCommonHeaders.length > 0 ? [newCommonHeaders[0]] : []);
     setSelectedHeaders([]);
   }, [headers1, headers2]);
 
-  // 检查key是否唯一
+  // 检查key是否唯一（多字段组合）
   const checkKey = (excelData) => {
     const keySet = new Set();
     for(let row of excelData){
-      const key = row[selectedKey];
+      const key = selectedKeys.map(k => row[k]).join('__');
       if (keySet.has(key)) {
         return false;
       }
@@ -89,12 +89,12 @@ export default function App() {
 
   useEffect(() => {
     setSelectedHeaders([]);
-  }, [selectedKey]);
+  }, [selectedKeys]);
 
   // 获取对比字段选项
   const getComparisonOptions = () => {
     // 过滤掉关联表头
-    const options = commonHeaders.filter(h => h !== selectedKey);
+    const options = commonHeaders.filter(h => !selectedKeys.includes(h));
     return options.map(h => ({ value: h, label: h }))
   }
 
@@ -105,36 +105,39 @@ export default function App() {
 
   // 对比逻辑
   const handleCompare = () => {
-    if (!selectedKey || selectedHeaders.length === 0) return;
+    if (!selectedKeys.length || !selectedHeaders.length) return;
     // 检查关联表头是否唯一
     if(!checkKey(excelData1) || !checkKey(excelData2)){
-      setSelectedKey('');
-      message.error('关联表头重复，请选择唯一的表头作为关联表头');
+      setSelectedKeys([]);
+      message.error('关联表头组合重复，请选择唯一的表头组合作为关联表头');
       return;
     }
-    
     // 用key做map
+    const getKey = (row) => selectedKeys.map(k => row[k]).join('__');
     const map2 = new Map();
-    excelData2.forEach(row => {
-      map2.set(row[selectedKey], row);
+    excelData2.forEach((row, index) => {
+      map2.set(getKey(row), { ...row, rowIndex: index + 1 });
     });
     const diffRows1 = [];
     const diffRows2 = [];
-    excelData1.forEach(row1 => {
-      const key = row1[selectedKey];
+    excelData1.forEach((row1, index) => {
+      const key = getKey(row1);
       const row2 = map2.get(key);
       if (!row2) return; // 只对比两表都有的key
       let hasDiff = false;
-      const diffRow1 = { key };
-      const diffRow2 = { key };
+      const diffRow1 = { key, rowIndex: index + 1 };
+      const diffRow2 = { key, rowIndex: row2.rowIndex };
       selectedHeaders.forEach(h => {
         const isDiff = row1[h] !== row2[h];
         if (isDiff) hasDiff = true;
         diffRow1[h] = { value: row1[h], diff: isDiff };
         diffRow2[h] = { value: row2[h], diff: isDiff };
       });
-      diffRow1[selectedKey] = { value: key, diff: false };
-      diffRow2[selectedKey] = { value: key, diff: false };
+      // 多字段key展示
+      selectedKeys.forEach(k => {
+        diffRow1[k] = { value: row1[k], diff: false };
+        diffRow2[k] = { value: row2[k], diff: false };
+      });
       if (hasDiff) {
         diffRows1.push(diffRow1);
         diffRows2.push(diffRow2);
@@ -143,12 +146,19 @@ export default function App() {
     // 生成columns
     const columns = [
       {
-        title: selectedKey,
-        dataIndex: selectedKey,
-        key: selectedKey,
+        title: '序号',
+        dataIndex: 'rowIndex',
+        key: 'rowIndex',
+        width: 70,
+        render: (cell) => (cell !== undefined ? cell + 1 : ''),
+      },
+      ...selectedKeys.map(k => ({
+        title: k,
+        dataIndex: k,
+        key: k,
         render: (cell) => cell?.value ?? '',
         width: 100,
-      },
+      })),
       ...selectedHeaders.map(h => ({
         title: h,
         dataIndex: h,
@@ -164,6 +174,25 @@ export default function App() {
     setDiffColumns(columns);
   };
 
+  // 删除文件
+  const onRemoveFile = (type='first') => {
+    if(type === 'first'){
+      setFileList1([]);
+      setExcelData1([]);
+      setHeaders1([]);
+    }else{
+      setFileList2([]);
+      setExcelData2([]);
+      setHeaders2([]);
+    }
+    setCommonHeaders([]);
+    setSelectedKeys([]);
+    setSelectedHeaders([]);
+    setDiffData1([]);
+    setDiffData2([]);
+    setDiffColumns([]);
+  }
+
   return (
     <div className="excel-compare-container">
       {/* 文件上传区域 */}
@@ -173,7 +202,7 @@ export default function App() {
           accept=".xlsx,.xls"
           beforeUpload={handleFirstExcel}
           fileList={fileList1}
-          onRemove={() => setFileList1([])}
+          onRemove={() => onRemoveFile('first')}
         >
           {isLoading1 ? 
             <p>解析中...</p> : 
@@ -188,7 +217,7 @@ export default function App() {
           accept=".xlsx,.xls"
           beforeUpload={handleSecondExcel}
           fileList={fileList2}
-          onRemove={() => setFileList2([])}
+          onRemove={() => onRemoveFile('second')}
         >
           {isLoading2 ? 
             <p>解析中...</p> : 
@@ -202,11 +231,12 @@ export default function App() {
       {/* 表头选择区域 */}
       <div className="config-section">
         <Select
+          mode="multiple"
           placeholder="选择关联表头KEY"
           style={{ width: 300 }}
-          value={selectedKey}
+          value={selectedKeys}
           options={commonHeaders.map(h => ({ value: h, label: h }))}
-          onChange={value => setSelectedKey(value)}
+          onChange={value => setSelectedKeys(value)}
         />
         
         <Select
