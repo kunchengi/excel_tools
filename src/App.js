@@ -143,6 +143,41 @@ export default function App() {
         diffRows2.push(diffRow2);
       }
     });
+    // 新增：处理表2比表1多出的行
+    const map1 = new Map();
+    excelData1.forEach((row, index) => {
+      map1.set(getKey(row), { ...row, rowIndex: index + 1 });
+    });
+    excelData2.forEach((row2, index) => {
+      const key = getKey(row2);
+      if (!map1.has(key)) {
+        // 表2多出的行
+        const diffRow2 = { key, rowIndex: index + 1, added: true };
+        const diffRow1 = { key, rowIndex: undefined };
+        selectedHeaders.forEach(h => {
+          diffRow2[h] = { value: row2[h], diff: false, added: true };
+          diffRow1[h] = { value: '', diff: false };
+        });
+        selectedKeys.forEach(k => {
+          diffRow2[k] = { value: row2[k], diff: false, added: true };
+          diffRow1[k] = { value: '', diff: false };
+        });
+        // 找到刚好大于diffRow2.rowIndex的项
+        const insertIndex = diffRows2.findIndex(row => row.rowIndex > diffRow2.rowIndex);
+        if (insertIndex !== -1) {
+          diffRows2.splice(insertIndex, 0, diffRow2);
+        } else {
+          diffRows2.push(diffRow2);
+        }
+        // 找到刚好大于diffRow2.rowIndex的项
+        const insertIndex1 = diffRows1.findIndex(row => row.rowIndex > diffRow2.rowIndex);
+        if (insertIndex1 !== -1) {
+          diffRows1.splice(insertIndex1, 0, diffRow1);
+        } else {
+          diffRows1.push(diffRow1);
+        }
+      }
+    });
     // 生成columns
     const columns = [
       {
@@ -156,16 +191,19 @@ export default function App() {
         title: k,
         dataIndex: k,
         key: k,
-        render: (cell) => cell?.value ?? '',
+        render: (cell, row) => row && row.added ? <span className="extra-column">{cell?.value ?? ''}</span> : (cell?.value ?? ''),
         width: 100,
       })),
       ...selectedHeaders.map(h => ({
         title: h,
         dataIndex: h,
         key: h,
-        render: (cell) => cell?.diff ? (
-          <span style={{ background: '#ffe58f' }}>{cell?.value ?? ''}</span>
-        ) : (cell?.value ?? ''),
+        render: (cell, row) => {
+          if (row && row.added) return <span className="extra-column">{cell?.value ?? ''}</span>;
+          return cell?.diff ? (
+            <span style={{ background: '#ffe58f' }}>{cell?.value ?? ''}</span>
+          ) : (cell?.value ?? '');
+        },
         width: 100,
       }))
     ];
@@ -192,6 +230,39 @@ export default function App() {
     setDiffData2([]);
     setDiffColumns([]);
   }
+
+  // 行高同步
+  useEffect(() => {
+    // 等待表格渲染
+    setTimeout(() => {
+      const rows1 = document.querySelectorAll('.compare-table:first-child .compare-row');
+      const rows2 = document.querySelectorAll('.compare-table:last-child .compare-row');
+      const len = Math.max(rows1.length, rows2.length);
+      for (let i = 0; i < len; i++) {
+        const row1 = rows1[i];
+        const row2 = rows2[i];
+        if (row1 && row2) {
+          // 取最大高度
+          const h1 = row1.offsetHeight;
+          const h2 = row2.offsetHeight;
+          const maxH = Math.max(h1, h2);
+          row1.style.height = `${maxH}px`;
+          row2.style.height = `${maxH}px`;
+        } else if (row1) {
+          row1.style.height = '';
+        } else if (row2) {
+          row2.style.height = '';
+        }
+      }
+    }, 100);
+    // 清理函数，恢复行高
+    return () => {
+      const rows1 = document.querySelectorAll('.compare-table:first-child .compare-row');
+      const rows2 = document.querySelectorAll('.compare-table:last-child .compare-row');
+      rows1.forEach(row => row.style.height = '');
+      rows2.forEach(row => row.style.height = '');
+    };
+  }, [diffData1, diffData2, diffColumns]);
 
   return (
     <div className="excel-compare-container">
@@ -259,6 +330,7 @@ export default function App() {
             dataSource={diffData1}
             scroll={{ x: true }}
             pagination={false}
+            rowClassName={(_, idx) => `compare-row compare-row-${idx}`}
           />
         </div>
         
@@ -268,6 +340,7 @@ export default function App() {
             dataSource={diffData2}
             scroll={{ x: true }}
             pagination={false}
+            rowClassName={(_, idx) => `compare-row compare-row-${idx}`}
           />
         </div>
       </div>
