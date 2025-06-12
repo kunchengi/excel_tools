@@ -163,14 +163,14 @@ export default function App() {
           diffRow1[k] = { value: '', diff: false };
         });
         // 找到刚好大于diffRow2.rowIndex的项
-        const insertIndex = diffRows2.findIndex(row => row.rowIndex > diffRow2.rowIndex);
+        const insertIndex = diffRows2.findIndex(row => row.rowIndex >= diffRow2.rowIndex);
         if (insertIndex !== -1) {
           diffRows2.splice(insertIndex, 0, diffRow2);
         } else {
           diffRows2.push(diffRow2);
         }
         // 找到刚好大于diffRow2.rowIndex的项
-        const insertIndex1 = diffRows1.findIndex(row => row.rowIndex > diffRow2.rowIndex);
+        const insertIndex1 = diffRows1.findIndex(row => row.rowIndex >= diffRow2.rowIndex);
         if (insertIndex1 !== -1) {
           diffRows1.splice(insertIndex1, 0, diffRow1);
         } else {
@@ -194,14 +194,14 @@ export default function App() {
           diffRow2[k] = { value: '', diff: false };
         });
         // 找到刚好大于diffRow1.rowIndex的项
-        const insertIndex = diffRows1.findIndex(row => row.rowIndex > diffRow1.rowIndex);
+        const insertIndex = diffRows1.findIndex(row => row.rowIndex >= diffRow1.rowIndex);
         if (insertIndex !== -1) {
           diffRows1.splice(insertIndex, 0, diffRow1);
         } else {
           diffRows1.push(diffRow1);
         }
         // 找到刚好大于diffRow1.rowIndex的项
-        const insertIndex2 = diffRows2.findIndex(row => row.rowIndex > diffRow1.rowIndex);
+        const insertIndex2 = diffRows2.findIndex(row => row.rowIndex >= diffRow1.rowIndex);
         if (insertIndex2 !== -1) {
           diffRows2.splice(insertIndex2, 0, diffRow2);
         } else {
